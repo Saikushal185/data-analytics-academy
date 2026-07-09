@@ -1,0 +1,12 @@
+{
+  "name": "Data Analytics Academy",
+  "short_name": "DA Academy",
+  "description": "Learn SQL, statistics, pandas, BI, and analytics engineering with live practice.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#15171a",
+  "theme_color": "#3b3bd6",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
