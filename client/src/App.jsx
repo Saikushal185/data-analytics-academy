@@ -111,37 +111,37 @@ function GenerateForm() {
   )
 }
 
-function Sidebar() {
+function Sidebar({ isOpen, onClose }) {
   const content = useContent()
   const { isDone, reset } = useProgress()
   const { isAuthed } = useAuth()
   const overall = overallProgress(content, isDone)
 
   return (
-    <aside className="sidebar">
-      <NavLink to="/" className="brand">Data Analytics Academy</NavLink>
-      <nav className="nav">
-        <NavLink to="/" end className="nav-item">Home</NavLink>
+    <aside className={`sidebar ${isOpen ? 'open' : ''}`} onClick={onClose}>
+      <NavLink to="/" className="brand" onClick={(e) => e.stopPropagation()}>Data Analytics Academy</NavLink>
+      <nav className="nav" onClick={(e) => e.stopPropagation()}>
+        <NavLink to="/" end className="nav-item" onClick={onClose}>Home</NavLink>
         {isAuthed && (
-          <NavLink to="/dashboard" className="nav-item">
+          <NavLink to="/dashboard" className="nav-item" onClick={onClose}>
             <span className="nav-label">DASH</span>
             <span className="nav-text">Dashboard</span>
           </NavLink>
         )}
         {isAuthed && (
-          <NavLink to="/review" className="nav-item">
+          <NavLink to="/review" className="nav-item" onClick={onClose}>
             <span className="nav-label">REV</span>
             <span className="nav-text">Review (SRS)</span>
           </NavLink>
         )}
-        <NavLink to="/reference" className="nav-item">
+        <NavLink to="/reference" className="nav-item" onClick={onClose}>
           <span className="nav-label">REF</span>
           <span className="nav-text">Quick Reference</span>
         </NavLink>
         {content.topics.map((t) => {
           const p = topicProgress(content, t.id, isDone)
           return (
-            <NavLink key={t.id} to={`/topic/${t.id}`} className="nav-item">
+            <NavLink key={t.id} to={`/topic/${t.id}`} className="nav-item" onClick={onClose}>
               <span className="nav-label">{t.label}</span>
               <span className="nav-text">{t.title}</span>
               {p.done > 0 && <span className="nav-pct">{p.pct}%</span>}
@@ -165,11 +165,20 @@ function Sidebar() {
 }
 
 export default function App() {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const closeSidebar = () => setSidebarOpen(false)
+
   return (
     <div className="app">
-      <Sidebar />
+      <div className={`sidebar-backdrop ${sidebarOpen ? 'open' : ''}`} onClick={closeSidebar} />
+      <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
       <div className="main">
         <div className="topbar">
+          <button className="hamburger-btn" onClick={() => setSidebarOpen(true)}>
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+              <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+            </svg>
+          </button>
           <SearchBox />
           <AccountArea />
         </div>
