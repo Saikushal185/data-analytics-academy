@@ -26,25 +26,25 @@ export function requireAuth(req, res, next) {
 
 const router = Router()
 
-router.post('/register', (req, res) => {
+router.post('/register', async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase()
   const password = String(req.body.password || '')
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' })
   if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' })
 
-  const exists = db.prepare('SELECT id FROM users WHERE email = ?').get(email)
+  const exists = await db.prepare('SELECT id FROM users WHERE email = ?').get(email)
   if (exists) return res.status(409).json({ error: 'An account with that email already exists' })
 
   const hash = bcrypt.hashSync(password, 10)
-  const info = db.prepare('INSERT INTO users (email, password_hash) VALUES (?, ?)').run(email, hash)
+  const info = await db.prepare('INSERT INTO users (email, password_hash) VALUES (?, ?)').run(email, hash)
   const user = { id: info.lastInsertRowid, email }
   res.json({ token: signToken(user), email })
 })
 
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase()
   const password = String(req.body.password || '')
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email)
+  const user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email)
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
     return res.status(401).json({ error: 'Invalid email or password' })
   }
@@ -53,13 +53,13 @@ router.post('/login', (req, res) => {
 
 // Request a password reset. Without an email provider configured we return the
 // reset link directly (keeps the app free); with SMTP it would be emailed.
-router.post('/request-reset', (req, res) => {
+router.post('/request-reset', async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase()
-  const user = db.prepare('SELECT id FROM users WHERE email = ?').get(email)
+  const user = await db.prepare('SELECT id FROM users WHERE email = ?').get(email)
   if (user) {
     const token = randomUUID()
     const expires = new Date(Date.now() + 60 * 60 * 1000).toISOString()
-    db.prepare('INSERT INTO reset_tokens (token, user_id, expires_at) VALUES (?, ?, ?)').run(token, user.id, expires)
+    await db.prepare('INSERT INTO reset_tokens (token, user_id, expires_at) VALUES (?, ?, ?)').run(token, user.id, expires)
     // In production with SMTP set, email this instead of returning it.
     return res.json({ ok: true, resetLink: `/reset?token=${token}`, emailed: false })
   }
@@ -67,15 +67,15 @@ router.post('/request-reset', (req, res) => {
   res.json({ ok: true, emailed: false })
 })
 
-router.post('/reset', (req, res) => {
+router.post('/reset', async (req, res) => {
   const token = String(req.body.token || '')
   const password = String(req.body.password || '')
   if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' })
-  const row = db.prepare('SELECT * FROM reset_tokens WHERE token = ?').get(token)
+  const row = await db.prepare('SELECT * FROM reset_tokens WHERE token = ?').get(token)
   if (!row || row.expires_at < new Date().toISOString())
     return res.status(400).json({ error: 'Invalid or expired reset link' })
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(bcrypt.hashSync(password, 10), row.user_id)
-  db.prepare('DELETE FROM reset_tokens WHERE token = ?').run(token)
+  await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(bcrypt.hashSync(password, 10), row.user_id)
+  await db.prepare('DELETE FROM reset_tokens WHERE token = ?').run(token)
   res.json({ ok: true })
 })
 

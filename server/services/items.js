@@ -29,6 +29,11 @@ for (const c of challenges) add(c.id, 'challenge', 'sql')
 for (const e of exercises) add(e.id, 'exercise', 'python')
 
 export function itemInfo(itemId) {
+  const custom = String(itemId || '').match(/^custom-(\d+)-(lesson|quiz)-/)
+  if (custom) {
+    const kind = custom[2]
+    return { kind, topicId: `custom-${custom[1]}`, xp: XP[kind] || 10 }
+  }
   return index[itemId] || null
 }
 

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useParams, Navigate, useLocation } from 'react-router-dom'
+import { useParams, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useContent } from '../components/ContentContext.jsx'
 import { recordVisit } from '../data/activity.js'
 import { topicProgress } from '../data/items.js'
@@ -14,6 +14,7 @@ export default function TopicPage() {
   const { topicId } = useParams()
   const content = useContent()
   const location = useLocation()
+  const navigate = useNavigate()
   const { isDone } = useProgress()
   const topic = content.topics.find((t) => t.id === topicId)
 
@@ -34,6 +35,13 @@ export default function TopicPage() {
 
   const p = topicProgress(content, topicId, isDone)
 
+  async function handleDelete() {
+    if (!topic.isCustom) return
+    if (!confirm(`Delete "${topic.title}"? This cannot be undone.`)) return
+    await content.deleteCustomTopic(topic)
+    navigate('/')
+  }
+
   return (
     <div className="topic-page">
       <header className="topic-header">
@@ -44,6 +52,11 @@ export default function TopicPage() {
           <div className="bar"><div className="bar-fill" style={{ width: `${p.pct}%` }} /></div>
           <span className="progress-label">{p.done}/{p.total} done · {p.pct}%</span>
         </div>
+        {topic.isCustom && (
+          <button className="delete-track-btn" onClick={handleDelete}>
+            Delete topic
+          </button>
+        )}
       </header>
 
       <section>

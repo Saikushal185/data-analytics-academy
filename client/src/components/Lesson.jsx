@@ -3,6 +3,7 @@ import { useProgress } from './ProgressContext.jsx'
 function Block({ block }) {
   if (block.h) return <h4 className="lesson-h">{block.h}</h4>
   if (block.p) return <p>{block.p}</p>
+  if (block.html) return <p dangerouslySetInnerHTML={{ __html: block.html }} />
   if (block.code) return <pre className="code-block">{block.code}</pre>
   if (block.note)
     return (

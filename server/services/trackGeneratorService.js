@@ -246,40 +246,40 @@ function toTopic(track, modules, lessons, quizzes, cards) {
   }
 }
 
-export function saveTrackForUser(userId, generated) {
+export async function saveTrackForUser(userId, generated) {
   if (!userId) throw new Error('Cannot save generated track without an authenticated user.')
 
-  const insertTrack = db.prepare(`
-    INSERT INTO custom_tracks (user_id, tag, title, description, difficulty)
-    VALUES (?, ?, ?, ?, ?)
-  `)
-  const insertModule = db.prepare(`
-    INSERT INTO custom_modules (track_id, user_id, title, order_index, subtopics)
-    VALUES (?, ?, ?, ?, ?)
-  `)
-  const insertLesson = db.prepare(`
-    INSERT INTO custom_lessons (module_id, track_id, user_id, title, order_index, content, code_example, note, has_code)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `)
-  const insertQuiz = db.prepare(`
-    INSERT INTO custom_quiz_questions (module_id, track_id, user_id, question, options, correct_index, explanation)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `)
-  const insertCard = db.prepare(`
-    INSERT INTO custom_srs_cards (module_id, track_id, user_id, front, back)
-    VALUES (?, ?, ?, ?, ?)
-  `)
+  const tx = db.transaction(async (txDb, track) => {
+    const insertTrack = txDb.prepare(`
+      INSERT INTO custom_tracks (user_id, tag, title, description, difficulty)
+      VALUES (?, ?, ?, ?, ?)
+    `)
+    const insertModule = txDb.prepare(`
+      INSERT INTO custom_modules (track_id, user_id, title, order_index, subtopics)
+      VALUES (?, ?, ?, ?, ?)
+    `)
+    const insertLesson = txDb.prepare(`
+      INSERT INTO custom_lessons (module_id, track_id, user_id, title, order_index, content, code_example, note, has_code)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    const insertQuiz = txDb.prepare(`
+      INSERT INTO custom_quiz_questions (module_id, track_id, user_id, question, options, correct_index, explanation)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `)
+    const insertCard = txDb.prepare(`
+      INSERT INTO custom_srs_cards (module_id, track_id, user_id, front, back)
+      VALUES (?, ?, ?, ?, ?)
+    `)
 
-  const tx = db.transaction((track) => {
-    const trackId = insertTrack.run(userId, track.tag, track.title, track.description, track.difficulty).lastInsertRowid
+    const trackRes = await insertTrack.run(userId, track.tag, track.title, track.description, track.difficulty)
+    const trackId = trackRes.lastInsertRowid
 
     for (const mod of track.modules) {
-      const moduleId = insertModule
-        .run(trackId, userId, mod.title, mod.order_index, JSON.stringify(mod.subtopics || []))
-        .lastInsertRowid
+      const modRes = await insertModule.run(trackId, userId, mod.title, mod.order_index, JSON.stringify(mod.subtopics || []))
+      const moduleId = modRes.lastInsertRowid
 
       for (const lesson of mod.lessons) {
-        insertLesson.run(
+        await insertLesson.run(
           moduleId,
           trackId,
           userId,
@@ -292,21 +292,21 @@ export function saveTrackForUser(userId, generated) {
         )
       }
       for (const q of mod.quiz_questions) {
-        insertQuiz.run(moduleId, trackId, userId, q.question, JSON.stringify(q.options), q.correct_index, q.explanation)
+        await insertQuiz.run(moduleId, trackId, userId, q.question, JSON.stringify(q.options), q.correct_index, q.explanation)
       }
       for (const card of mod.srs_cards) {
-        insertCard.run(moduleId, trackId, userId, card.front, card.back)
+        await insertCard.run(moduleId, trackId, userId, card.front, card.back)
       }
     }
 
     return trackId
   })
 
-  return tx(generated)
+  return await tx(generated)
 }
 
-export function getCustomTracksForUser(userId) {
-  const tracks = db.prepare(`
+export async function getCustomTracksForUser(userId) {
+  const tracks = await db.prepare(`
     SELECT id, tag, title, description, difficulty, created_at, quiz_questions
     FROM custom_tracks
     WHERE user_id = ?
@@ -338,11 +338,11 @@ export function getCustomTracksForUser(userId) {
     ORDER BY module_id ASC, id ASC
   `)
 
-  return tracks.map((track) => {
-    const modules = getModules.all(track.id, userId)
-    let lessons = getLessons.all(track.id, userId)
-    let quiz = getQuiz.all(track.id, userId)
-    let cards = getCards.all(track.id, userId)
+  return await Promise.all(tracks.map(async (track) => {
+    const modules = await getModules.all(track.id, userId)
+    let lessons = await getLessons.all(track.id, userId)
+    let quiz = await getQuiz.all(track.id, userId)
+    let cards = await getCards.all(track.id, userId)
 
     if (!lessons.length) {
       lessons = modules.flatMap((mod) =>
@@ -386,17 +386,19 @@ export function getCustomTracksForUser(userId) {
       quiz,
       cards
     )
-  })
+  }))
 }
 
-export function getCustomCardsForUser(userId) {
-  return db.prepare(`
+export async function getCustomCardsForUser(userId) {
+  const rows = await db.prepare(`
     SELECT c.id, c.track_id, c.front, c.back, t.title AS trackTitle
     FROM custom_srs_cards c
     JOIN custom_tracks t ON c.track_id = t.id
     WHERE c.user_id = ?
     ORDER BY c.id ASC
-  `).all(userId).map((card) => ({
+  `).all(userId)
+  
+  return rows.map((card) => ({
     id: `custom-card-${card.track_id}-${card.id}`,
     topicId: customTopicId(card.track_id),
     topicLabel: card.trackTitle,
@@ -406,16 +408,17 @@ export function getCustomCardsForUser(userId) {
   }))
 }
 
-export function deleteCustomTrackForUser(userId, trackId) {
+export async function deleteCustomTrackForUser(userId, trackId) {
   const topicId = customTopicId(trackId)
-  return db.transaction(() => {
-    db.prepare('DELETE FROM progress WHERE user_id = ? AND item_id LIKE ?').run(userId, `${topicId}-%`)
-    db.prepare('DELETE FROM quiz_attempts WHERE user_id = ? AND topic_id = ?').run(userId, topicId)
-    db.prepare('DELETE FROM reviews WHERE user_id = ? AND card_id LIKE ?').run(userId, `custom-card-${trackId}-%`)
-    db.prepare('DELETE FROM custom_srs_cards WHERE track_id = ? AND user_id = ?').run(trackId, userId)
-    db.prepare('DELETE FROM custom_quiz_questions WHERE track_id = ? AND user_id = ?').run(trackId, userId)
-    db.prepare('DELETE FROM custom_lessons WHERE track_id = ? AND user_id = ?').run(trackId, userId)
-    db.prepare('DELETE FROM custom_modules WHERE track_id = ? AND user_id = ?').run(trackId, userId)
-    return db.prepare('DELETE FROM custom_tracks WHERE id = ? AND user_id = ?').run(trackId, userId).changes
+  return await db.transaction(async (txDb) => {
+    await txDb.prepare('DELETE FROM progress WHERE user_id = ? AND item_id LIKE ?').run(userId, `${topicId}-%`)
+    await txDb.prepare('DELETE FROM quiz_attempts WHERE user_id = ? AND topic_id = ?').run(userId, topicId)
+    await txDb.prepare('DELETE FROM reviews WHERE user_id = ? AND card_id LIKE ?').run(userId, `custom-card-${trackId}-%`)
+    await txDb.prepare('DELETE FROM custom_srs_cards WHERE track_id = ? AND user_id = ?').run(trackId, userId)
+    await txDb.prepare('DELETE FROM custom_quiz_questions WHERE track_id = ? AND user_id = ?').run(trackId, userId)
+    await txDb.prepare('DELETE FROM custom_lessons WHERE track_id = ? AND user_id = ?').run(trackId, userId)
+    await txDb.prepare('DELETE FROM custom_modules WHERE track_id = ? AND user_id = ?').run(trackId, userId)
+    const res = await txDb.prepare('DELETE FROM custom_tracks WHERE id = ? AND user_id = ?').run(trackId, userId)
+    return res.changes
   })()
 }

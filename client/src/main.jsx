@@ -8,7 +8,6 @@ import { ToastProvider } from './components/ToastContext.jsx'
 import { StatsProvider } from './components/StatsContext.jsx'
 import { ProgressProvider } from './components/ProgressContext.jsx'
 import { ThemeProvider } from './components/ThemeContext.jsx'
-import { CustomTracksProvider } from './components/CustomTracksContext.jsx'
 import './styles.css'
 
 // Register the service worker for offline support (production builds only).
@@ -25,9 +24,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <ToastProvider>
               <StatsProvider>
                 <ProgressProvider>
-                  <CustomTracksProvider>
-                    <App />
-                  </CustomTracksProvider>
+                  <App />
                 </ProgressProvider>
               </StatsProvider>
             </ToastProvider>

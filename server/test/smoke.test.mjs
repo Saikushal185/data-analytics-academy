@@ -100,10 +100,10 @@ test('custom tracks: generated lesson-shaped content lists and deletes per user'
   const token = reg.json.token
 
   const { default: db } = await import('../db.js')
-  const { saveTrackToDb } = await import('../services/trackGeneratorService.js')
+  const { saveTrackForUser } = await import('../services/trackGeneratorService.js')
   const user = db.prepare('SELECT id FROM users WHERE email = ?').get('tracks@test.com')
 
-  const trackId = saveTrackToDb(user.id, {
+  const trackId = saveTrackForUser(user.id, {
     tag: 'ML',
     title: 'Machine Learning Basics',
     description: 'Learn the core ideas behind practical machine learning.',
@@ -112,34 +112,39 @@ test('custom tracks: generated lesson-shaped content lists and deletes per user'
       {
         title: 'Foundations',
         order_index: 1,
+        subtopics: ['Features', 'Labels'],
         lessons: [
           {
             title: 'Features and Labels',
-            content: 'A **feature** is an input column and a **label** is the target you predict.\n\n```python\nX = df[[\"age\"]]\ny = df[\"spent\"]\n```\n\nNote: Keep training-only information out of features.',
-            has_code: true
+            order_index: 1,
+            content: '<p>A <strong>feature</strong> is an input column and a <strong>label</strong> is the target you predict.</p>',
+            code_example: 'X = df[["age"]]\ny = df["spent"]',
+            note: 'Keep training-only information out of features.',
+            has_code: 1
+          }
+        ],
+        quiz_questions: [
+          {
+            question: 'Which value is the label?',
+            options: ['Input age', 'Target spend', 'Row id', 'File name'],
+            correct_index: 1,
+            explanation: 'The label is the target the model learns to predict.'
           }
         ],
         srs_cards: [{ front: 'What is a label?', back: 'The target value being predicted.' }]
       }
-    ],
-    quiz_questions: [
-      {
-        question: 'Which value is the label?',
-        options: ['Input age', 'Target spend', 'Row id', 'File name'],
-        correct_index: 1,
-        explanation: 'The label is the target the model learns to predict.'
-      }
-    ],
-    challenges: []
+    ]
   })
 
   const mine = await api('/api/tracks/my', { token })
-  const track = mine.json.find((t) => t.id === trackId)
+  const track = mine.json.find((t) => t.customId === trackId)
+  assert.equal(track.id, `custom-${trackId}`)
   assert.equal(track.title, 'Machine Learning Basics')
-  assert.equal(track.modules[0].lessons[0].title, 'Features and Labels')
+  assert.equal(track.lessons[0].title, 'Features and Labels')
+  assert.equal(track.quiz[0].answer, 1)
 
   const del = await api(`/api/tracks/${trackId}`, { method: 'DELETE', token })
   assert.equal(del.json.ok, true)
   const afterDelete = await api('/api/tracks/my', { token })
-  assert.equal(afterDelete.json.some((t) => t.id === trackId), false)
+  assert.equal(afterDelete.json.some((t) => t.customId === trackId), false)
 })

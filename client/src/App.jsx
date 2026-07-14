@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Routes, Route, NavLink, Link } from 'react-router-dom'
+import { Routes, Route, NavLink, Link, useNavigate } from 'react-router-dom'
 import { useContent } from './components/ContentContext.jsx'
 import { topicProgress, overallProgress } from './data/items.js'
 import { useProgress } from './components/ProgressContext.jsx'
@@ -8,7 +8,6 @@ import { useStats } from './components/StatsContext.jsx'
 import { useTheme } from './components/ThemeContext.jsx'
 import Home from './pages/Home.jsx'
 import TopicPage from './pages/TopicPage.jsx'
-import CustomTrackPage from './pages/CustomTrackPage.jsx'
 import Login from './pages/Login.jsx'
 import Search from './pages/Search.jsx'
 import Reference from './pages/Reference.jsx'
@@ -18,7 +17,7 @@ import Review from './pages/Review.jsx'
 import RightRail from './components/RightRail.jsx'
 import SearchBox from './components/SearchBox.jsx'
 import Tutor from './components/Tutor.jsx'
-import { useCustomTracks } from './components/CustomTracksContext.jsx'
+import { useToast } from './components/ToastContext.jsx'
 
 function XpChip() {
   const { stats } = useStats()
@@ -58,7 +57,9 @@ function AccountArea() {
 }
 
 function GenerateForm() {
-  const { generate, generating } = useCustomTracks()
+  const content = useContent()
+  const { addToast } = useToast()
+  const navigate = useNavigate()
   const [topic, setTopic] = useState('')
   const [showForm, setShowForm] = useState(false)
 
@@ -66,8 +67,17 @@ function GenerateForm() {
     e.preventDefault()
     const t = topic.trim()
     if (!t) return
-    const result = await generate(t)
-    if (result) { setTopic(''); setShowForm(false) }
+    try {
+      const result = await content.generateCustomTopic(t)
+      if (result) {
+        setTopic('')
+        setShowForm(false)
+        addToast({ title: 'Topic generated' })
+        navigate(`/topic/${result.id}`)
+      }
+    } catch (err) {
+      addToast({ title: err.message || 'Generation failed. Is Ollama running?' })
+    }
   }
 
   if (!showForm) {
@@ -86,14 +96,14 @@ function GenerateForm() {
         placeholder="e.g. Machine Learning"
         value={topic}
         onChange={(e) => setTopic(e.target.value)}
-        disabled={generating}
+        disabled={content.generating}
         autoFocus
       />
       <div className="generate-actions">
-        <button type="submit" className="generate-btn" disabled={generating || !topic.trim()}>
-          {generating ? 'Generating…' : 'Create'}
+        <button type="submit" className="generate-btn" disabled={content.generating || !topic.trim()}>
+          {content.generating ? 'Generating…' : 'Create'}
         </button>
-        <button type="button" className="generate-cancel" onClick={() => setShowForm(false)} disabled={generating}>
+        <button type="button" className="generate-cancel" onClick={() => setShowForm(false)} disabled={content.generating}>
           Cancel
         </button>
       </div>
@@ -105,7 +115,6 @@ function Sidebar() {
   const content = useContent()
   const { isDone, reset } = useProgress()
   const { isAuthed } = useAuth()
-  const { tracks: customTracks } = useCustomTracks()
   const overall = overallProgress(content, isDone)
 
   return (
@@ -140,18 +149,7 @@ function Sidebar() {
           )
         })}
 
-        {isAuthed && (
-          <>
-            <div className="custom-section-sep">Custom Tracks</div>
-            {customTracks.map((ct) => (
-              <NavLink key={ct.id} to={`/custom/${ct.id}`} className="nav-item nav-custom">
-                <span className="nav-label custom-label">{ct.tag}</span>
-                <span className="nav-text">{ct.title}</span>
-              </NavLink>
-            ))}
-            <GenerateForm />
-          </>
-        )}
+        {isAuthed && <GenerateForm />}
       </nav>
       <div className="sidebar-foot">
         <div className="overall-mini">Overall {overall.pct}%</div>
@@ -186,7 +184,6 @@ export default function App() {
               <Route path="/settings" element={<Settings />} />
               <Route path="/review" element={<Review />} />
               <Route path="/topic/:topicId" element={<TopicPage />} />
-              <Route path="/custom/:trackId" element={<CustomTrackPage />} />
             </Routes>
           </main>
           <RightRail />

@@ -4,7 +4,7 @@ import { useContent } from '../components/ContentContext.jsx'
 
 function blockText(blocks = []) {
   return blocks
-    .map((b) => b.p || b.h || b.note || b.code || (b.ul ? b.ul.join(' ') : ''))
+    .map((b) => b.p || b.h || b.note || b.code || (b.html ? b.html.replace(/<[^>]*>/g, ' ') : '') || (b.ul ? b.ul.join(' ') : ''))
     .join(' ')
 }
 
