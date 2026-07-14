@@ -3,6 +3,7 @@ import { Router } from 'express'
 import db from '../db.js'
 import { requireAuth } from '../auth.js'
 import { cardById, cardIds } from '../services/cards.js'
+import { getCustomCardsForUser } from '../services/trackGeneratorService.js'
 import { recordActivity } from '../services/awards.js'
 
 const router = Router()
@@ -19,19 +20,28 @@ router.get('/due', (req, res) => {
   const seenSet = new Set(seen.map((r) => r.card_id))
   const nowTs = now()
 
+  // Build a merged card lookup: built-in + custom
+  const customCards = getCustomCardsForUser(uid)
+  const mergedById = { ...cardById }
+  const mergedIds = [...cardIds]
+  for (const cc of customCards) {
+    mergedById[cc.id] = cc
+    mergedIds.push(cc.id)
+  }
+
   const due = seen
-    .filter((r) => r.due_at <= nowTs && cardById[r.card_id])
+    .filter((r) => r.due_at <= nowTs && mergedById[r.card_id])
     .map((r) => r.card_id)
-  const fresh = cardIds.filter((id) => !seenSet.has(id)).slice(0, NEW_PER_SESSION)
+  const fresh = mergedIds.filter((id) => !seenSet.has(id)).slice(0, NEW_PER_SESSION)
 
   const queue = [...due, ...fresh].slice(0, MAX_DUE).map((id) => {
-    const c = cardById[id]
+    const c = mergedById[id]
     return { id: c.id, topicId: c.topicId, topicLabel: c.topicLabel, kind: c.kind, front: c.front, back: c.back, isNew: !seenSet.has(id) }
   })
 
   res.json({
     cards: queue,
-    counts: { due: due.length, new: fresh.length, total: cardIds.length, learned: seenSet.size },
+    counts: { due: due.length, new: fresh.length, total: mergedIds.length, learned: seenSet.size },
   })
 })
 
@@ -40,7 +50,13 @@ router.post('/grade', (req, res) => {
   const uid = req.user.id
   const cardId = String(req.body.cardId || '')
   const q = Math.max(0, Math.min(5, parseInt(req.body.quality, 10)))
-  if (!cardById[cardId]) return res.status(404).json({ error: 'Unknown card' })
+  // Look up card from built-in pool, or from custom cards if ID matches
+  let card = cardById[cardId]
+  if (!card && cardId.startsWith('custom-card-')) {
+    const customCards = getCustomCardsForUser(uid)
+    card = customCards.find((c) => c.id === cardId)
+  }
+  if (!card) return res.status(404).json({ error: 'Unknown card' })
 
   let row = db.prepare('SELECT * FROM reviews WHERE user_id = ? AND card_id = ?').get(uid, cardId)
   let ease = row?.ease ?? 2.5

@@ -111,3 +111,9 @@ The server behaves based on the following environment variables:
 | `DATA_DIR` | Directory where `data.db` is stored | (Server folder) |
 | `OLLAMA_URL` | Base URL of local Ollama instance | `http://127.0.0.1:11434` |
 | `OLLAMA_MODEL` | AI tutor model name | `qwen3-coder:latest` |
+| `TRACK_GENERATION_PROVIDER` | Track generator provider: `auto`, `ollama`, `gemini`, or `grok`. In `auto`, it tries Ollama, then Gemini, then Grok. | `auto` |
+| `OLLAMA_MODELS` | Comma-separated Ollama models for track generation fallback | `phi4-mini:3.8b,gemma3:4b,qwen3:8b` |
+| `GEMINI_API_KEY` | Gemini key for deployed track generation fallback | unset |
+| `GEMINI_MODEL` | Gemini model for track generation | `gemini-2.0-flash` |
+| `GROK_API_KEY` / `XAI_API_KEY` | Grok/xAI key for final track generation fallback | unset |
+| `GROK_MODEL` | Grok model for track generation | `grok-4` |

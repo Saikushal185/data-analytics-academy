@@ -115,7 +115,55 @@ db.exec(`
     issued_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS custom_tracks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    tag TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    difficulty TEXT NOT NULL,
+    quiz_questions TEXT,
+    challenges TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS custom_modules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    track_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    order_index INTEGER NOT NULL,
+    lessons TEXT,
+    srs_cards TEXT,
+    FOREIGN KEY (track_id) REFERENCES custom_tracks(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
 `)
+
+function ensureColumn(table, column, definition) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all()
+  if (!columns.some((col) => col.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+  }
+}
+
+// Older local databases used `subtopics` for generated module lesson content.
+// CREATE TABLE IF NOT EXISTS does not evolve those tables, so keep startup
+// migrations here for existing installs and persistent deployed disks.
+ensureColumn('custom_modules', 'lessons', 'TEXT')
+ensureColumn('custom_modules', 'srs_cards', 'TEXT')
+
+const customModuleColumns = db.prepare('PRAGMA table_info(custom_modules)').all()
+const hasLegacySubtopics = customModuleColumns.some((col) => col.name === 'subtopics')
+if (hasLegacySubtopics) {
+  db.prepare(`
+    UPDATE custom_modules
+    SET lessons = subtopics
+    WHERE (lessons IS NULL OR lessons = '') AND subtopics IS NOT NULL AND subtopics != ''
+  `).run()
+}
 
 // Ensure every user has a prefs row.
 export function ensurePrefs(userId) {

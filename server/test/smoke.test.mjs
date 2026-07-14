@@ -24,6 +24,8 @@ async function api(path, { method = 'GET', token, body } = {}) {
 
 before(async () => {
   dataDir = mkdtempSync(join(tmpdir(), 'daa-test-'))
+  process.env.DATA_DIR = dataDir
+  process.env.JWT_SECRET = 'test-secret'
   proc = spawn('node', ['server/index.js'], {
     cwd: join(__dirname, '..', '..'),
     env: { ...process.env, PORT: String(PORT), DATA_DIR: dataDir, JWT_SECRET: 'test-secret' },
@@ -91,4 +93,53 @@ test('account: change password works and updates login', async () => {
   assert.equal(ch.json.ok, true)
   const login = await api('/api/auth/login', { method: 'POST', body: { email: 'e@f.com', password: 'newpass1' } })
   assert.ok(login.json.token)
+})
+
+test('custom tracks: generated lesson-shaped content lists and deletes per user', async () => {
+  const reg = await api('/api/auth/register', { method: 'POST', body: { email: 'tracks@test.com', password: 'secret1' } })
+  const token = reg.json.token
+
+  const { default: db } = await import('../db.js')
+  const { saveTrackToDb } = await import('../services/trackGeneratorService.js')
+  const user = db.prepare('SELECT id FROM users WHERE email = ?').get('tracks@test.com')
+
+  const trackId = saveTrackToDb(user.id, {
+    tag: 'ML',
+    title: 'Machine Learning Basics',
+    description: 'Learn the core ideas behind practical machine learning.',
+    difficulty: 'beginner',
+    modules: [
+      {
+        title: 'Foundations',
+        order_index: 1,
+        lessons: [
+          {
+            title: 'Features and Labels',
+            content: 'A **feature** is an input column and a **label** is the target you predict.\n\n```python\nX = df[[\"age\"]]\ny = df[\"spent\"]\n```\n\nNote: Keep training-only information out of features.',
+            has_code: true
+          }
+        ],
+        srs_cards: [{ front: 'What is a label?', back: 'The target value being predicted.' }]
+      }
+    ],
+    quiz_questions: [
+      {
+        question: 'Which value is the label?',
+        options: ['Input age', 'Target spend', 'Row id', 'File name'],
+        correct_index: 1,
+        explanation: 'The label is the target the model learns to predict.'
+      }
+    ],
+    challenges: []
+  })
+
+  const mine = await api('/api/tracks/my', { token })
+  const track = mine.json.find((t) => t.id === trackId)
+  assert.equal(track.title, 'Machine Learning Basics')
+  assert.equal(track.modules[0].lessons[0].title, 'Features and Labels')
+
+  const del = await api(`/api/tracks/${trackId}`, { method: 'DELETE', token })
+  assert.equal(del.json.ok, true)
+  const afterDelete = await api('/api/tracks/my', { token })
+  assert.equal(afterDelete.json.some((t) => t.id === trackId), false)
 })

@@ -61,6 +61,10 @@ export const api = {
 
   reviewsDue: () => request('/reviews/due', { auth: true }),
   gradeReview: (cardId, quality) => request('/reviews/grade', { method: 'POST', body: { cardId, quality }, auth: true }),
+  
+  getCustomTracks: () => request('/tracks/my', { auth: true }),
+  generateCustomTrack: (topic) => request('/tracks/generate', { method: 'POST', body: { topic }, auth: true }),
+  deleteCustomTrack: (id) => request(`/tracks/${encodeURIComponent(id)}`, { method: 'DELETE', auth: true }),
 }
 
 // Streaming tutor chat — calls onToken for each text chunk. Returns when done.
