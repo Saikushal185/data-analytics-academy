@@ -166,8 +166,8 @@ const db = {
     return {
       run: async (...args) => {
         const isInsert = finalSql.trim().toLowerCase().startsWith('insert');
-        const querySql = isInsert && !finalSql.toLowerCase().includes('returning id') 
-           ? finalSql + ' RETURNING id'
+        const querySql = isInsert && !finalSql.toLowerCase().includes('returning ') 
+           ? finalSql + ' RETURNING *'
            : finalSql;
         try {
           const res = await pool.query(querySql, args);
@@ -209,7 +209,7 @@ const db = {
           return {
             run: async (...runArgs) => {
               const isInsert = finalSql.trim().toLowerCase().startsWith('insert');
-              const querySql = isInsert && !finalSql.toLowerCase().includes('returning id') ? finalSql + ' RETURNING id' : finalSql;
+              const querySql = isInsert && !finalSql.toLowerCase().includes('returning ') ? finalSql + ' RETURNING *' : finalSql;
               const res = await client.query(querySql, runArgs);
               return { lastInsertRowid: res.rows[0]?.id, changes: res.rowCount };
             },
