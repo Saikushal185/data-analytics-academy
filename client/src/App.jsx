@@ -170,7 +170,6 @@ export default function App() {
       <Sidebar />
       <div className="main">
         <div className="topbar">
-          <NavLink to="/" className="mobile-brand">DAA</NavLink>
           <SearchBox />
           <AccountArea />
         </div>
