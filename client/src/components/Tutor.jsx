@@ -17,6 +17,39 @@ function useContextLabel() {
   return 'the Data Analytics Academy home'
 }
 
+// Custom markdown formatter (supports code blocks, headings, bold, inline code)
+function formatMessage(text) {
+  if (!text) return null
+  const blocks = text.split(/(```[\s\S]*?```)/g)
+  return blocks.map((block, bIdx) => {
+    if (block.startsWith('```') && block.endsWith('```')) {
+      const code = block.slice(3, -3).replace(/^.*?\n/, '') // removes language tag
+      return <pre key={bIdx}><code>{code}</code></pre>
+    }
+    const lines = block.split('\n')
+    return <div key={bIdx}>
+      {lines.map((line, lIdx) => {
+        let isHeading = false, headingLevel = 0, content = line
+        const hMatch = line.match(/^(#{1,6})\s+(.*)/)
+        if (hMatch) {
+          isHeading = true; headingLevel = hMatch[1].length; content = hMatch[2]
+        }
+        const parts = content.split(/(\*\*.*?\*\*|`.*?`)/g)
+        const formattedLine = parts.map((part, pIdx) => {
+          if (part.startsWith('**') && part.endsWith('**')) return <strong key={pIdx}>{part.slice(2, -2)}</strong>
+          if (part.startsWith('`') && part.endsWith('`')) return <code key={pIdx}>{part.slice(1, -1)}</code>
+          return <span key={pIdx}>{part}</span>
+        })
+        if (isHeading) {
+          const Tag = `h${headingLevel}`
+          return <Tag key={lIdx} style={{ margin: '0.5em 0' }}>{formattedLine}</Tag>
+        }
+        return <div key={lIdx} style={{ minHeight: '1em' }}>{formattedLine}</div>
+      })}
+    </div>
+  })
+}
+
 export default function Tutor() {
   const [open, setOpen] = useState(false)
   const [status, setStatus] = useState(null) // null=unknown, true/false
@@ -88,7 +121,7 @@ export default function Tutor() {
         )}
         {messages.map((m, i) => (
           <div key={i} className={`tutor-msg ${m.role}`}>
-            {m.content || (busy && i === messages.length - 1 ? '…' : '')}
+            {m.content ? formatMessage(m.content) : (busy && i === messages.length - 1 ? '…' : '')}
           </div>
         ))}
       </div>
